@@ -1,9 +1,8 @@
 name: French Bot
 on:
   schedule:
-    # 세네갈 저녁 8시 (UTC 20:00)
     - cron: '0 20 * * *'
-  workflow_dispatch: # 수동으로 실행해볼 수 있는 버튼을 만듭니다.
+  workflow_dispatch:
 
 jobs:
   run-bot:
