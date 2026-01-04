@@ -1,64 +1,48 @@
 import requests, random, os
 from bs4 import BeautifulSoup
 
-def get_link():
-    # 1. 레벨과 주제 리스트 설정
-    levels = ['b1', 'b2']
-    topics = [
-        "soci%C3%A9t%C3%A9", "culture", "%C3%A9conomie", 
-        "politique", "environnement", "sciences-sant%C3%A9"
-    ]
-    
-    selected_level = random.choice(levels)
-    selected_topic = random.choice(topics)
-    
-    # 2. 최종 카테고리 URL 구성
-    # 예: https://francaisfacile.rfi.fr/fr/comprendre-actualité-français/b1/société/
-    base_url = f"https://francaisfacile.rfi.fr/fr/comprendre-actualit%C3%A9-fran%C3%A7ais/{selected_level}/{selected_topic}/"
+def get_rfi_b1_link():
+    # B1 연습문제 목록 페이지
+    url = "https://francaisfacile.rfi.fr/fr/comprendre-actualit%C3%A9-fran%C3%A7ais/b1/"
     
     headers = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
     }
 
     try:
-        response = requests.get(base_url, headers=headers)
+        response = requests.get(url, headers=headers, timeout=10)
+        if response.status_code != 200:
+            return None, f"사이트 접속 실패 (Status: {response.status_code})"
+
         soup = BeautifulSoup(response.text, 'html.parser')
         
+        # 기사 링크 추출 (보통 /fr/exercices/ 경로를 가집니다)
         links = []
-        # 해당 카테고리 페이지 내에서 연습문제 링크 추출
         for a in soup.find_all('a', href=True):
             href = a['href']
-            # 실제 학습 콘텐츠는 보통 '/fr/exercices/' 경로를 포함함
+            # 중복 방지 및 실제 기사 링크만 필터링
             if '/fr/exercices/' in href and len(href) > 40:
                 if not href.startswith('http'):
                     href = "https://francaisfacile.rfi.fr" + href
                 links.append(href)
         
         if links:
-            # 중복 제거 후 랜덤 하나 선택
-            return random.choice(list(set(links))), selected_level, selected_topic
-        return None, selected_level, selected_topic
-        
-    except Exception as e:
-        print(f"Error: {e}")
-        return None, None, None
+            return random.choice(list(set(links))), "성공"
+        else:
+            return None, "기사 링크를 찾지 못했습니다."
 
-# 텔레그램 전송 부분
+    except Exception as e:
+        return None, str(e)
+
+# 실행 및 전송
 token = os.environ.get('TELEGRAM_TOKEN')
 chat_id = os.environ.get('CHAT_ID')
-link, level, topic = get_link()
+link, status = get_rfi_b1_link()
 
-if link and token and chat_id:
-    # URL 인코딩된 주제를 다시 읽기 편하게 변환
-    display_topic = topic.replace("%C3%A9", "é").replace("%C3%A9", "é").replace("-", "/")
+if token and chat_id:
+    if link:
+        text = f"🇫🇷 오늘의 프랑스어 연습 (B1) 🇫🇷\n\n알림이 왔을 때 바로 시작해보세요!\n\n🔗 링크: {link}"
+    else:
+        text = f"⚠️ 봇 실행 알림\n원인: {status}\n나중에 다시 시도하거나 코드를 점검해주세요."
     
-    text = (
-        f"🇫🇷 오늘의 프랑스어 연습 도착!\n\n"
-        f"📌 레벨: {level.upper()}\n"
-        f"📂 주제: {display_topic.capitalize()}\n"
-        f"🔗 링크: {link}\n\n"
-        f"오늘의 30분을 응원합니다! Bonne chance!"
-    )
     requests.post(f"https://api.telegram.org/bot{token}/sendMessage", data={'chat_id': chat_id, 'text': text})
-else:
-    print("조건에 맞는 링크를 찾지 못했습니다.")
